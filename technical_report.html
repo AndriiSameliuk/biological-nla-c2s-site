@@ -1,0 +1,1247 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>C2S Biological NLA · Technical report</title><style>body{font:17px/1.7 system-ui,-apple-system,sans-serif;color:#17313e;background:#f7f7f2;max-width:1080px;margin:auto;padding:32px}h1,h2{font-family:Georgia,serif;line-height:1.2}h1{font-size:2.5rem}h2{font-size:1.7rem;margin-top:2.4rem}a{color:#006b78}table{border-collapse:collapse;width:100%;font-size:12px;display:block;overflow:auto;margin:1rem 0}th,td{text-align:left;padding:6px;border:1px solid #cdd9dc}th{background:#e4efee}pre{font:12px/1.6 ui-monospace,monospace;background:#ecf0f0;padding:16px;white-space:pre-wrap;overflow-wrap:anywhere}code{font-size:.85em;overflow-wrap:anywhere}nav{display:flex;gap:20px;border-bottom:1px solid #b8cdcd;padding-bottom:20px;flex-wrap:wrap}p{margin:1rem 0}@media(max-width:600px){body{padding:16px}h1{font-size:2rem}}@media print{body{font-size:10pt;background:white}nav{display:none}h2{break-after:avoid}}</style></head><body><nav><a href="index.html">Interactive explorer</a><a href="https://github.com/AndriiSameliuk/biological-nla-c2s/blob/main/docs/USAGE.md">Private code and usage (access required)</a><a href="https://huggingface.co/biolatent/biological-nla-c2s">Private model repository (access required)</a></nav><main><h1>Biological Natural Language Autoencoder with frozen native C2S</h1>
+<p>Technical research report · September 2026. Native C2S activation → learned controlled-language Actor → text-only Reader → reconstructed activation → frozen H. The featured same-head aligned system is evaluated alongside V1, V2 and same-head historical; teacher agreement, measured assertion correctness and activation reconstruction are distinct outcomes.</p>
+<p><a id="sec01"></a></p>
+<h2>1. Research question</h2>
+<p>A biological natural language autoencoder asks whether a cell representation can pass through an interpretable text channel and still support useful reconstruction and downstream behavior. A fluent sentence alone is insufficient. The message must depend on the cell, its assertions need an explicit biological reference, and the reconstructed representation must be assessed in the same coordinates and task as the original. This report therefore separates assertion fidelity, measured-reference correctness, and numerical or behavioral preservation.</p>
+<p><a id="sec02"></a></p>
+<h2>2. Why a biological natural language autoencoder?</h2>
+<p>A useful text bottleneck must do more than generate plausible sentences. It should expose a defined semantic object, retain information about the particular input, and support measurable reconstruction or downstream behavior. A cell representation offers a demanding setting because a short statement can agree with a learned teacher while still disagreeing with the paired molecular measurement.</p>
+<p>Here the semantic channel is ten protein-state assertions. This design makes the encoded claims inspectable and gives the Reader an explicit, testable interface. It also imposes a severe information constraint: ten ternary states do not provide a complete molecular description. The question is what such a channel preserves, and which forms of fidelity diverge.</p>
+<p><a id="sec03"></a></p>
+<h2>3. Transition from the earlier scGPT formulation</h2>
+<p>The earlier scGPT audit found a real text bottleneck around a pooled representation whose task meaning was uncertain. Its decisive extraction used a brain-specialized checkpoint on blood/bone-marrow inputs, and the NLA objective did not identify a downstream scGPT biological behavior. This does not make the saved vectors fictitious. It limits what reconstruction of those vectors can establish. The audit rejected the assumption that vector loss plus a language-model prior would necessarily yield truthful biological descriptions. The historical scGPT layer labels belong to that extractor and must not be reused for C2S. [1]</p>
+<p>The current formulation makes the interface narrower and testable. A frozen native C2S representation supports a separately fitted protein-prediction head, H. Ten fold-specific, assay-relative protein states define the allowed semantic message. An adapted language model chooses those states, and an independently applied text-only Reader reconstructs the native activation. This is controlled-language NLA, not unrestricted biological explanation, mechanistic interpretation of every transformer operation, or discovery of a causal cellular mechanism. The record supports an evidence-based transition in task definition; it does not imply that every earlier research branch succeeded or was revalidated. [2–4]</p>
+<p><a id="sec04"></a></p>
+<h2>4. GSE194122 data and eligibility</h2>
+<p>The existing GSE194122 development snapshot contains 63,607 cells, 13,953 RNA features and 134 ADT channels. Native C2S eligibility requires at least 200 RNA-positive features: 62,574 cells satisfy this rule, and 1,033 do not. The packaged examples come only from this already eligible population. Their RNA and ADT rows were read to document the existing result; no other cohort or protected donor was accessed. Each example carries a pseudonymous key, original zero-based snapshot row, held-fold local index, donor and site. [3,5]</p>
+<table>
+<thead>
+<tr>
+<th>Donor / fold</th>
+<th>Site</th>
+<th>Cells</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>1</td>
+<td>5227</td>
+</tr>
+<tr>
+<td>1</td>
+<td>2</td>
+<td>10401</td>
+</tr>
+<tr>
+<td>1</td>
+<td>3</td>
+<td>8785</td>
+</tr>
+<tr>
+<td>1</td>
+<td>4</td>
+<td>5455</td>
+</tr>
+<tr>
+<td>2</td>
+<td>1</td>
+<td>4978</td>
+</tr>
+<tr>
+<td>5</td>
+<td>2</td>
+<td>9057</td>
+</tr>
+<tr>
+<td>7</td>
+<td>3</td>
+<td>11306</td>
+</tr>
+<tr>
+<td>9</td>
+<td>4</td>
+<td>7365</td>
+</tr>
+</tbody>
+</table>
+<p><a id="sec05"></a></p>
+<h2>5. Cross-donor experimental design</h2>
+<p>Each outer fold holds out one donor and uses the other four as training donors. Donor 1 occurs at four sites; donors 2, 5, 7 and 9 occur at sites 1, 2, 3 and 4 respectively. The population is therefore not five equal cell-count groups. Primary summaries first average site results within a donor, then give the five donors equal weight. A pooled-cell percentage answers a different question and must be labeled separately. For class metrics, protein-level eligibility is resolved before those site/donor averages. [3,6]</p>
+<p>The term “held” describes exclusion from that fold’s fitting data, not independence of the whole research program. These donors were exposed development data during architecture, objective and reporting decisions. The historical cross-validation design remains informative about within-study donor transfer, but it is not untouched external confirmation. The package does not create a fresh holdout by selecting examples or replaying saved arrays.</p>
+<p>The row join is explicit rather than inferred from similar protein patterns. Snapshot row joins the RNA sentence and selected count row; the held-row array joins that row to h, teacher/evaluator arrays and saved generation local index; parsed records preserve their original family offsets. Wrong-cell controls retain both source and recipient indices. No protein label or cell identity is passed as an additional variable input to the Reader.</p>
+<p><a id="sec06"></a></p>
+<h2>6. Native C2S activation extraction</h2>
+<p>The pristine native encoder is <code>vandijklab/C2S-Scale-Gemma-2-2B</code> at the pinned revision recorded in the base dependency manifest. The input sentence uses 200 positive-expression gene names in descending count order, with the official seed-42 shuffle and stable-sort tie rule. The exact saved sentence is retained rather than regenerated from a different ranking implementation. A fixed human-cell prompt wraps that sentence. The sentence enters the native encoder, not the Actor. [5]</p>
+<p>The extraction path is the official singleton <code>CSModel.embed_cell</code>, which calls <code>embed_cells_batched</code> with a list containing one prompt. The implementation reads <code>outputs.hidden_states[-1][idx]</code> and averages along the sequence dimension. In the pinned Transformers 4.46.3 Gemma2 implementation, the final returned hidden-state entry is appended after the model’s final RMSNorm. The model has 26 decoder blocks: the relevant boundary follows zero-based block 25, after the final model normalization. This is not a CLS token, a pre-normalization block hook, or an scGPT layer-11 representation. [5,11]</p>
+<p>Because the historical call is singleton, its tokenizer padding operation adds no extra padded positions. Pooling covers the full unpadded prompt, including BOS, instruction words and gene tokens. The result is one 2,304-dimensional float32 vector, with no L2 normalization. Its norm is a descriptive quantity, not a preprocessing step. Individual coordinates are learned embedding coordinates; they have no one-to-one assignment to genes.</p>
+<p>The released examples include the full saved h vector for every case, a coordinate summary, the exact prompt and token IDs from CPU tokenizer replay, and the saved prompt-length comparison. Token-level hidden-state matrices were not retained. The viewer states this explicitly and never invents per-gene activations. Reconstructing tokenizer IDs does not rerun the transformer. Similarly, the later six Actor prefix vectors are different tensors, derived from h by the learned prefix module, not recovered token activations from native extraction.</p>
+<p><a id="sec07"></a></p>
+<h2>7. Frozen H and assay-relative semantics</h2>
+<p>H is a task-specific multivariate ridge head fitted in the earlier study, then frozen within each outer fold. It maps native activations to 134 predicted log1p(ADT) values. It is not a built-in protein-prediction head of the original pretrained language model. Its saved mean, scale, coefficient matrix and intercept define <code>H(h) = ((h − mean_H) / scale_H) W_H + b_H</code>. The package keeps these parameters separate from the Actor normalizer and decoder target coordinates. [3,5]</p>
+<p>For a measured profile, the assay-relative value is log1p(ADT) minus that cell’s own mean log1p value across all 134 channels. The predicted H profile is centered by its own 134-channel mean. Only after centering are the ten fold-panel channels selected. Centering over ten selected proteins instead would change the task, as would subtracting measured ADT’s mean from an H prediction. The full all134 channel ordering is therefore an inference dependency rather than optional descriptive metadata.</p>
+<p>Each panel and its q25/q75 thresholds were fixed from the relevant training data. A value strictly below q25 is low; strictly above q75 is high; values at either boundary are typical. These are training-reference categories, not normal clinical ranges or absolute protein abundances. The selected panel differs across folds. A protein absent from a fold’s panel contributes no assertion or score in that fold, not a zero-valued observation. [2,6]</p>
+<p>Original V1 targets used inner-head predictions: the donor being labeled was excluded from that inner head’s coefficient fit. However, validation scores across the four outer-training donors participated in lambda selection. The historical description is therefore partial cross-fitting, with the documented limitation retained. Same-head target alignment changed the Actor target states to predictions of the already frozen outer H on its own training rows. These in-sample labels align the training and evaluation mappings; they do not independently certify H or make its states biologically truer. Outer-held measured ADT was not used to construct these Actor labels. [7,8]</p>
+<p><a id="sec08"></a></p>
+<h2>8. Actor architecture</h2>
+<p>The Actor is an adapted copy of the pinned C2S language-model backbone. The pristine native encoder remains separate. Actor h is first standardized with equal-donor/equal-site training-fold statistics. The learned prefix applies LayerNorm(2304), Linear(2304,256), exact GELU, Linear(256,6×2304), then reshapes to six embeddings and adds learned positional offsets. These embeddings follow BOS and precede the static instruction. The Actor additionally uses rank-8 LoRA on q/k/v/o projections, alpha 16 and dropout 0.05. Base weights, token embeddings and LM head remain frozen. [2,3]</p>
+<p>There are 7,356,160 trainable parameters: 4,161,280 in the prefix and 3,194,880 in LoRA. Consequently, a PEFT adapter alone is not the full Actor. Each final deployment file includes the original prefix and LoRA tensors plus h mean/scale, without merging, quantizing or modifying weights. Fold/checkpoint identity is checked against the corresponding final checkpoint seal.</p>
+<p><a id="sec09"></a></p>
+<h2>9. The controlled-language bottleneck</h2>
+<p>The frozen instruction lists the ten proteins. Generation is grammar-constrained autoregressive greedy decoding in FP32 with eager attention, without autocast or TF32. Literal spans preserve the autoregressive context; they do not supply H-selected answers. At each state slot the Actor chooses between low, typical and high. The canonical output uses 201–203 tokens including EOS, within the fixed 224-token cap.</p>
+<p>For selected cases, the viewer retains exact English text, output token IDs, states and the three saved allowed-state logits at each of ten decisions. A CPU softmax over those three logits is explicitly derived and is not a full-vocabulary probability or biological confidence estimate. Literal-token logits and full-vocabulary logits are unavailable. A line animation is playback of recorded output, not live generation or measured timing.</p>
+<p><a id="sec10"></a></p>
+<h2>10. Text-only Reader and semantic decoder</h2>
+<p>The successful Reader is a strict full-message parser followed by a frozen semantic ridge map. It supports four explicitly registered wording templates and clause reordering. Every panel protein must occur exactly once with a valid state. Empty content, unknown proteins, unsupported states, duplicated or conflicting assertions, negation, missing proteins and malformed or unrelated content receive typed rejections. Rejection is not silently repaired and does not return an arbitrary fallback activation. This is known-grammar recognition, not evidence of arbitrary-language understanding. [4]</p>
+<p>The parser produces states in static panel order. Categories are ordered low, typical, high, so ten three-level variables become exactly 30 one-hot components. With x as a row vector, the decoder returns <code>h_hat = x B + b</code>, where B has shape 30×2304 and b has length 2304. The output is in native activation coordinates. Features and target activations are not scaled by the Actor’s normalizer or H standardizer. An expanded coordinate lists the intercept plus the ten selected coefficient rows, giving a concrete algebraic explanation of the reconstruction. These terms are not causal biological attributions.</p>
+<p>Historically, weighted ridge fitting minimized <code>sum_i w_i ||h_i − x_i B − b||² + λ ||B||_F²</code>, with an unpenalized intercept and weights summing to one. Donors, their sites, and cells within sites received equal hierarchical weights. The grid was 0.0001, 0.001, 0.01, 0.1, 1, 10 and 100. Training-only leave-one-training-donor-out selection maximized mean task FVE, then minimized same-H panel MAE, then preferred larger λ. [9]</p>
+<p><a id="sec11"></a></p>
+<h2>11. Training objectives</h2>
+<p>Actor training used teacher-forced causal token cross-entropy, with weight 20 on each of ten state tokens and weight 1 on other response tokens. Weighted token losses are normalized per response and averaged over the batch. V1 used 1,000 updates per fold, effective batch 64, AdamW, a 50-update warmup and decay from 2×10⁻⁴ toward 2×10⁻⁵. The executed layout was four-rank DDP with 16 examples per rank, not a superseded planning microbatch. The ordinary and same-head continuations restored V1 optimizer, sampler and rank RNG state and ran updates 1001–2000 at fixed 2×10⁻⁵ without restarting warmup or scheduling. [2,3,7,8]</p>
+<p><a id="sec12"></a></p>
+<h2>12. Evaluation definitions and distinct correctness measures</h2>
+<p>These objectives must be distinguished from the per-cell numbers in the explorer. Let r = h_hat − h. Full SSE is the sum of 2,304 squared residuals. MSE divides SSE by 2,304; RMSE is its square root. Task SSE is <code>||(h_hat − h) U||²</code> using the original task basis and native coordinate convention. Orthogonal SSE is the nonnegative difference between full and task SSE. The same frozen H is applied to h_hat, centered across all134, and compared with centered H(h) using selected-panel and all134 mean absolute errors.</p>
+<p>The original fitting-reference mean supplies contextual squared distance for each cell, but the report does not call an individual ratio “FVE.” The primary definition is site-level:</p>
+<p><code>FVE(d,s) = 1 − [sum_i SSE(i)] / [sum_i ||h_i − mu_fit,d||²]</code>, for cells i in donor d, site s.</p>
+<p>Task and orthogonal variants use the corresponding projected numerator and reference denominator. The final number is the mean over sites within each donor, then the mean of five donors. Average RMSE is likewise computed at the established site/donor level, not from a pooled mean or mean per-cell RMSE. These distinctions matter because donors and sites have different sizes and variances. The package’s compact population arrays preserve the necessary per-cell terms so these calculations can be reproduced without a transformer or refit.</p>
+<p>Teacher agreement asks whether the actual Actor assertion equals the outer-H-derived state. Ordinary measured correctness asks whether it equals the state derived from the measured assay reference. Round-trip correctness instead evaluates H on reconstructed h. Neither the teacher nor the round trip rewrites the original assertion. A Reader output that preserves H behavior does not retroactively make a wrong sentence correct. The measured assay is a reference measurement, not infallible latent biological truth. [6,8]</p>
+<p>Balanced accuracy is a mean of class recalls, with the prescribed protein and site aggregation. It is not the fraction of ordinary assertions correct, and especially not the fraction of whole descriptions correct. Complete-description correctness requires all ten actual assertions to match simultaneously; it is computed from the joint output, not by multiplying marginal accuracies under an independence assumption.</p>
+<p>For the same-head text, teacher assertion agreement is 0.871062535, while measured ordinary correctness is 0.668849452 and measured assertion BA is 0.620563249. Complete teacher agreement is 27.704%; complete measured correctness is 2.931%. The latter must never be reported as the former. Decoder alignment leaves these textual quantities unchanged because the saved text is unchanged. [8,9]</p>
+<p>Donor-7 CD11a has 4,644 low, 6,662 typical and zero high reference states. Its high recall, three-class BA and three-class F1 remain undefined. It remains in ordinary, complete-description, ordinal, extreme-error and appropriate continuous metrics. It is not replaced by another protein, assigned perfect performance, or silently imputed. Per-state summaries may use different supported protein sets, so averaging published low/typical/high recalls need not reproduce the headline BA. The population evidence retains supports and confusion matrices; the selected example gallery cannot estimate this missing-class structure or its prevalence.</p>
+<p><a id="sec13"></a></p>
+<h2>13. Original V1</h2>
+<p>V1 trained each fold-specific Actor for 1,000 updates against the original partially cross-fitted target lineage. It established an activation-dependent controlled-language channel under the study’s predefined development checks. Its donor-macro full/task/orthogonal activation FVE is 0.412533214 / 0.495001882 / 0.411779729. Measured assertion balanced accuracy is 0.609015284. [2,3,6]</p>
+<p>V1 remains the stronger activation-reconstruction reference among the four primary configurations. A later improvement in teacher agreement or measured assertion quality does not overturn that result. Its final inference Actor and full training state are both retained for every fold.</p>
+<p><a id="sec14"></a></p>
+<h2>14. Ordinary V2 continuation</h2>
+<p>Ordinary V2 resumed all five V1 update-1000 full checkpoints and continued to update 2000 using optimizer moments, four-rank RNG state and sampler continuity. The learning rate remained 2e-5 without a new warmup or scheduler restart. Teacher assertion agreement rose from 0.813256173 to 0.817164877, but full FVE fell from 0.412533214 to 0.406990405 and measured assertion balanced accuracy changed from 0.609015284 to 0.607630534. This was not a material overall improvement. [7]</p>
+<p>The diagnostic identified a training-to-held transfer limitation, making objective or target lineage more plausible explanations than simply insufficient duration. It did not establish convergence or uniquely identify a mechanism. A derived task-SSE equality cross-tab was corrected by evaluating identical semantic objects through one common floating-point path; headline V1/V2 metrics were unchanged.</p>
+<p><a id="sec15"></a></p>
+<h2>15. Same-head target alignment</h2>
+<p>Same-head continuation starts from the same V1 final states but changes the training labels to states produced by the already frozen outer H on its training rows. It aligns the Actor’s target mapping with the evaluated H without using outer-held measured ADT to construct labels. These labels are in-sample predictions of H, not independent biological truth. [8]</p>
+<p>The same-head Actor raises teacher assertion agreement to 0.871062535 and measured ordinary correctness to 0.668849452. Complete teacher agreement is approximately 27.704%, while measured complete-description correctness is approximately 2.931%. With the historical decoder, task FVE is 0.459593839: better text fidelity coexists with a reconstruction cost. Target alignment alone therefore supports a fidelity improvement, not a universal gain.</p>
+<p><a id="sec16"></a></p>
+<h2>16. Aligned semantic decoder</h2>
+<p>The aligned decoder changes the semantic ridge mapping while preserving the actual same-head Actor messages and model tensors. Its inputs are the frozen outer-H training states, its targets remain native training activations, and the training-only selection rules remain fixed. Fold 1 selects λ=0.1 and folds 2/5/7/9 select λ=0.01; the historical decoder uses 0.01 in every fold. All aligned decoders were sealed before held reconstruction evaluation. [9]</p>
+<p>This separately completed ablation raises task FVE from 0.459593839 to 0.481887268, lowers same-H selected-panel MAE from 0.360312306 to 0.353491737, and raises round-trip measured balanced accuracy from 0.596761780 to 0.603089169. Textual correctness does not change because the messages do not change. Reconstruction recovery is partial: V1 retains higher full, task and orthogonal FVE.</p>
+<p><a id="sec17"></a></p>
+<h2>17. Final four-way comparison</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Original V1</th>
+<th>Ordinary V2</th>
+<th>Same-head / historical</th>
+<th>Same-head / aligned</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Teacher assertion agreement</td>
+<td>0.813256173</td>
+<td>0.817164877</td>
+<td>0.871062535</td>
+<td>0.871062535</td>
+</tr>
+<tr>
+<td>Complete teacher agreement</td>
+<td>0.178203860</td>
+<td>0.183186372</td>
+<td>0.277044679</td>
+<td>0.277044679</td>
+</tr>
+<tr>
+<td>Measured ordinary correctness</td>
+<td>0.635346042</td>
+<td>0.633808168</td>
+<td>0.668849452</td>
+<td>0.668849452</td>
+</tr>
+<tr>
+<td>Measured assertion BA</td>
+<td>0.609015284</td>
+<td>0.607630534</td>
+<td>0.620563249</td>
+<td>0.620563249</td>
+</tr>
+<tr>
+<td>Measured assertion macro-F1</td>
+<td>0.564445937</td>
+<td>0.563968214</td>
+<td>0.593916858</td>
+<td>0.593916858</td>
+</tr>
+<tr>
+<td>Measured complete description</td>
+<td>0.018790976</td>
+<td>0.017120875</td>
+<td>0.029313216</td>
+<td>0.029313216</td>
+</tr>
+<tr>
+<td>Measured ordinal assertion error</td>
+<td>0.369106558</td>
+<td>0.370625977</td>
+<td>0.335981079</td>
+<td>0.335981079</td>
+</tr>
+<tr>
+<td>Extreme low/high assertion error</td>
+<td>0.008627193</td>
+<td>0.008580374</td>
+<td>0.008750778</td>
+<td>0.008750778</td>
+</tr>
+<tr>
+<td>Full FVE</td>
+<td>0.412533214</td>
+<td>0.406990405</td>
+<td>0.385265450</td>
+<td>0.392100408</td>
+</tr>
+<tr>
+<td>Task FVE</td>
+<td>0.495001882</td>
+<td>0.488476378</td>
+<td>0.459593839</td>
+<td>0.481887268</td>
+</tr>
+<tr>
+<td>Orthogonal FVE</td>
+<td>0.411779729</td>
+<td>0.406248917</td>
+<td>0.384595273</td>
+<td>0.391289570</td>
+</tr>
+<tr>
+<td>Activation RMSE</td>
+<td>0.655783515</td>
+<td>0.658753320</td>
+<td>0.669575219</td>
+<td>0.667339428</td>
+</tr>
+<tr>
+<td>Same-H selected-panel MAE</td>
+<td>0.380962482</td>
+<td>0.380998497</td>
+<td>0.360312306</td>
+<td>0.353491737</td>
+</tr>
+<tr>
+<td>Same-H all134 MAE</td>
+<td>0.354975629</td>
+<td>0.356545238</td>
+<td>0.357363493</td>
+<td>0.346794496</td>
+</tr>
+<tr>
+<td>Round-trip measured BA</td>
+<td>0.590359935</td>
+<td>0.590018696</td>
+<td>0.596761780</td>
+<td>0.603089169</td>
+</tr>
+</tbody>
+</table>
+<p>V1 still has higher full, task and orthogonal activation FVE. Aligned same-head improves assertion quality relative to V1 and improves several behavior metrics relative to the same-head historical decoder. These claims concern different objectives. Diagnostic application of the aligned decoder to original V1 and ordinary V2 text produced task FVE 0.470559582 and 0.467388019 respectively; alignment is therefore not a universally better replacement for every Actor. The package’s primary four-way comparison keeps each historical Actor with its proper historical decoder except for the explicitly featured aligned same-head pair.</p>
+<p><a id="sec18"></a></p>
+<h2>18. Donor and site behavior</h2>
+<p>Population conclusions are based on all evaluated held cells. The following fold table uses equal-site averages, and the site table exposes heterogeneity without changing the aggregation rule. All numbers are generated from the shared registry, whose entries point to exact JSON fields. The accompanying machine tables include complete metric dictionaries and per-cell sufficient statistics. An outcome-selected weak or strong example is not a substitute for these population summaries.</p>
+<table>
+<thead>
+<tr>
+<th>Fold</th>
+<th>Configuration</th>
+<th>Full FVE</th>
+<th>Task FVE</th>
+<th>Orthogonal FVE</th>
+<th>H panel MAE</th>
+<th>Round-trip BA</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Original V1</td>
+<td>0.417495</td>
+<td>0.478920</td>
+<td>0.416786</td>
+<td>0.430870</td>
+<td>0.571090</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Ordinary V2</td>
+<td>0.416164</td>
+<td>0.469748</td>
+<td>0.415535</td>
+<td>0.433318</td>
+<td>0.567601</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Same-head / historical</td>
+<td>0.374834</td>
+<td>0.377186</td>
+<td>0.374674</td>
+<td>0.425249</td>
+<td>0.564823</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Same-head / aligned</td>
+<td>0.390857</td>
+<td>0.452816</td>
+<td>0.390138</td>
+<td>0.401860</td>
+<td>0.540925</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Original V1</td>
+<td>0.412058</td>
+<td>0.470039</td>
+<td>0.411700</td>
+<td>0.454954</td>
+<td>0.586847</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Ordinary V2</td>
+<td>0.404187</td>
+<td>0.458182</td>
+<td>0.403854</td>
+<td>0.455684</td>
+<td>0.588064</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Same-head / historical</td>
+<td>0.428025</td>
+<td>0.478940</td>
+<td>0.427710</td>
+<td>0.356294</td>
+<td>0.620050</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Same-head / aligned</td>
+<td>0.429835</td>
+<td>0.504645</td>
+<td>0.429373</td>
+<td>0.334538</td>
+<td>0.646727</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Original V1</td>
+<td>0.411783</td>
+<td>0.513432</td>
+<td>0.411205</td>
+<td>0.341822</td>
+<td>0.614229</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Ordinary V2</td>
+<td>0.401133</td>
+<td>0.503695</td>
+<td>0.400550</td>
+<td>0.346485</td>
+<td>0.605484</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Same-head / historical</td>
+<td>0.363803</td>
+<td>0.478245</td>
+<td>0.363152</td>
+<td>0.353776</td>
+<td>0.612995</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Same-head / aligned</td>
+<td>0.373034</td>
+<td>0.477968</td>
+<td>0.372437</td>
+<td>0.366354</td>
+<td>0.619758</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Original V1</td>
+<td>0.390897</td>
+<td>0.506963</td>
+<td>0.389238</td>
+<td>0.325821</td>
+<td>0.576005</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Ordinary V2</td>
+<td>0.387446</td>
+<td>0.503673</td>
+<td>0.385784</td>
+<td>0.321980</td>
+<td>0.576502</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Same-head / historical</td>
+<td>0.345637</td>
+<td>0.464782</td>
+<td>0.343934</td>
+<td>0.321230</td>
+<td>0.580321</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Same-head / aligned</td>
+<td>0.357371</td>
+<td>0.480175</td>
+<td>0.355616</td>
+<td>0.319436</td>
+<td>0.588017</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Original V1</td>
+<td>0.430434</td>
+<td>0.505655</td>
+<td>0.429969</td>
+<td>0.351345</td>
+<td>0.603629</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Ordinary V2</td>
+<td>0.426022</td>
+<td>0.507084</td>
+<td>0.425522</td>
+<td>0.347526</td>
+<td>0.612443</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Same-head / historical</td>
+<td>0.414029</td>
+<td>0.498815</td>
+<td>0.413506</td>
+<td>0.345011</td>
+<td>0.605620</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Same-head / aligned</td>
+<td>0.409405</td>
+<td>0.493832</td>
+<td>0.408884</td>
+<td>0.345271</td>
+<td>0.620018</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Donor/site</th>
+<th>Configuration</th>
+<th>Full FVE</th>
+<th>Task FVE</th>
+<th>Orth. FVE</th>
+<th>H MAE</th>
+<th>RT BA</th>
+<th>Text exact</th>
+<th>Text BA</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1/1</td>
+<td>Original V1</td>
+<td>0.537916</td>
+<td>0.583064</td>
+<td>0.537361</td>
+<td>0.487324</td>
+<td>0.549518</td>
+<td>0.549283</td>
+<td>0.566136</td>
+</tr>
+<tr>
+<td>1/1</td>
+<td>Ordinary V2</td>
+<td>0.538358</td>
+<td>0.579111</td>
+<td>0.537856</td>
+<td>0.490159</td>
+<td>0.545630</td>
+<td>0.548996</td>
+<td>0.563529</td>
+</tr>
+<tr>
+<td>1/1</td>
+<td>Same-head / historical</td>
+<td>0.517657</td>
+<td>0.556799</td>
+<td>0.517175</td>
+<td>0.430774</td>
+<td>0.581894</td>
+<td>0.658274</td>
+<td>0.627070</td>
+</tr>
+<tr>
+<td>1/1</td>
+<td>Same-head / aligned</td>
+<td>0.479028</td>
+<td>0.536614</td>
+<td>0.478319</td>
+<td>0.440855</td>
+<td>0.567114</td>
+<td>0.658274</td>
+<td>0.627070</td>
+</tr>
+<tr>
+<td>1/2</td>
+<td>Original V1</td>
+<td>0.458600</td>
+<td>0.568799</td>
+<td>0.457391</td>
+<td>0.357533</td>
+<td>0.586502</td>
+<td>0.688165</td>
+<td>0.607858</td>
+</tr>
+<tr>
+<td>1/2</td>
+<td>Ordinary V2</td>
+<td>0.456955</td>
+<td>0.562497</td>
+<td>0.455797</td>
+<td>0.361177</td>
+<td>0.586697</td>
+<td>0.683329</td>
+<td>0.608453</td>
+</tr>
+<tr>
+<td>1/2</td>
+<td>Same-head / historical</td>
+<td>0.450596</td>
+<td>0.549165</td>
+<td>0.449514</td>
+<td>0.354776</td>
+<td>0.591410</td>
+<td>0.697068</td>
+<td>0.616782</td>
+</tr>
+<tr>
+<td>1/2</td>
+<td>Same-head / aligned</td>
+<td>0.411647</td>
+<td>0.519251</td>
+<td>0.410466</td>
+<td>0.367434</td>
+<td>0.566995</td>
+<td>0.697068</td>
+<td>0.616782</td>
+</tr>
+<tr>
+<td>1/3</td>
+<td>Original V1</td>
+<td>0.230415</td>
+<td>0.243664</td>
+<td>0.230296</td>
+<td>0.496187</td>
+<td>0.546732</td>
+<td>0.653694</td>
+<td>0.570829</td>
+</tr>
+<tr>
+<td>1/3</td>
+<td>Ordinary V2</td>
+<td>0.223377</td>
+<td>0.217246</td>
+<td>0.223432</td>
+<td>0.497809</td>
+<td>0.539880</td>
+<td>0.655003</td>
+<td>0.567351</td>
+</tr>
+<tr>
+<td>1/3</td>
+<td>Same-head / historical</td>
+<td>0.082856</td>
+<td>-0.114438</td>
+<td>0.084630</td>
+<td>0.555193</td>
+<td>0.482328</td>
+<td>0.661002</td>
+<td>0.518977</td>
+</tr>
+<tr>
+<td>1/3</td>
+<td>Same-head / aligned</td>
+<td>0.274170</td>
+<td>0.283012</td>
+<td>0.274091</td>
+<td>0.411697</td>
+<td>0.440773</td>
+<td>0.661002</td>
+<td>0.518977</td>
+</tr>
+<tr>
+<td>1/4</td>
+<td>Original V1</td>
+<td>0.443047</td>
+<td>0.520152</td>
+<td>0.442097</td>
+<td>0.382437</td>
+<td>0.601609</td>
+<td>0.639413</td>
+<td>0.629792</td>
+</tr>
+<tr>
+<td>1/4</td>
+<td>Ordinary V2</td>
+<td>0.445969</td>
+<td>0.520137</td>
+<td>0.445055</td>
+<td>0.384125</td>
+<td>0.598200</td>
+<td>0.643300</td>
+<td>0.628257</td>
+</tr>
+<tr>
+<td>1/4</td>
+<td>Same-head / historical</td>
+<td>0.448226</td>
+<td>0.517217</td>
+<td>0.447376</td>
+<td>0.360253</td>
+<td>0.603660</td>
+<td>0.640568</td>
+<td>0.647972</td>
+</tr>
+<tr>
+<td>1/4</td>
+<td>Same-head / aligned</td>
+<td>0.398583</td>
+<td>0.472388</td>
+<td>0.397674</td>
+<td>0.387451</td>
+<td>0.588819</td>
+<td>0.640568</td>
+<td>0.647972</td>
+</tr>
+<tr>
+<td>2/1</td>
+<td>Original V1</td>
+<td>0.412058</td>
+<td>0.470039</td>
+<td>0.411700</td>
+<td>0.454954</td>
+<td>0.586847</td>
+<td>0.559160</td>
+<td>0.609429</td>
+</tr>
+<tr>
+<td>2/1</td>
+<td>Ordinary V2</td>
+<td>0.404187</td>
+<td>0.458182</td>
+<td>0.403854</td>
+<td>0.455684</td>
+<td>0.588064</td>
+<td>0.559642</td>
+<td>0.607295</td>
+</tr>
+<tr>
+<td>2/1</td>
+<td>Same-head / historical</td>
+<td>0.428025</td>
+<td>0.478940</td>
+<td>0.427710</td>
+<td>0.356294</td>
+<td>0.620050</td>
+<td>0.682322</td>
+<td>0.650405</td>
+</tr>
+<tr>
+<td>2/1</td>
+<td>Same-head / aligned</td>
+<td>0.429835</td>
+<td>0.504645</td>
+<td>0.429373</td>
+<td>0.334538</td>
+<td>0.646727</td>
+<td>0.682322</td>
+<td>0.650405</td>
+</tr>
+<tr>
+<td>5/2</td>
+<td>Original V1</td>
+<td>0.411783</td>
+<td>0.513432</td>
+<td>0.411205</td>
+<td>0.341822</td>
+<td>0.614229</td>
+<td>0.698841</td>
+<td>0.627592</td>
+</tr>
+<tr>
+<td>5/2</td>
+<td>Ordinary V2</td>
+<td>0.401133</td>
+<td>0.503695</td>
+<td>0.400550</td>
+<td>0.346485</td>
+<td>0.605484</td>
+<td>0.688904</td>
+<td>0.617125</td>
+</tr>
+<tr>
+<td>5/2</td>
+<td>Same-head / historical</td>
+<td>0.363803</td>
+<td>0.478245</td>
+<td>0.363152</td>
+<td>0.353776</td>
+<td>0.612995</td>
+<td>0.686563</td>
+<td>0.627497</td>
+</tr>
+<tr>
+<td>5/2</td>
+<td>Same-head / aligned</td>
+<td>0.373034</td>
+<td>0.477968</td>
+<td>0.372437</td>
+<td>0.366354</td>
+<td>0.619758</td>
+<td>0.686563</td>
+<td>0.627497</td>
+</tr>
+<tr>
+<td>7/3</td>
+<td>Original V1</td>
+<td>0.390897</td>
+<td>0.506963</td>
+<td>0.389238</td>
+<td>0.325821</td>
+<td>0.576005</td>
+<td>0.669105</td>
+<td>0.587961</td>
+</tr>
+<tr>
+<td>7/3</td>
+<td>Ordinary V2</td>
+<td>0.387446</td>
+<td>0.503673</td>
+<td>0.385784</td>
+<td>0.321980</td>
+<td>0.576502</td>
+<td>0.670051</td>
+<td>0.588702</td>
+</tr>
+<tr>
+<td>7/3</td>
+<td>Same-head / historical</td>
+<td>0.345637</td>
+<td>0.464782</td>
+<td>0.343934</td>
+<td>0.321230</td>
+<td>0.580321</td>
+<td>0.692438</td>
+<td>0.590913</td>
+</tr>
+<tr>
+<td>7/3</td>
+<td>Same-head / aligned</td>
+<td>0.357371</td>
+<td>0.480175</td>
+<td>0.355616</td>
+<td>0.319436</td>
+<td>0.588017</td>
+<td>0.692438</td>
+<td>0.590913</td>
+</tr>
+<tr>
+<td>9/4</td>
+<td>Original V1</td>
+<td>0.430434</td>
+<td>0.505655</td>
+<td>0.429969</td>
+<td>0.351345</td>
+<td>0.603629</td>
+<td>0.616986</td>
+<td>0.626441</td>
+</tr>
+<tr>
+<td>9/4</td>
+<td>Ordinary V2</td>
+<td>0.426022</td>
+<td>0.507084</td>
+<td>0.425522</td>
+<td>0.347526</td>
+<td>0.612443</td>
+<td>0.617787</td>
+<td>0.633134</td>
+</tr>
+<tr>
+<td>9/4</td>
+<td>Same-head / historical</td>
+<td>0.414029</td>
+<td>0.498815</td>
+<td>0.413506</td>
+<td>0.345011</td>
+<td>0.605620</td>
+<td>0.618697</td>
+<td>0.631301</td>
+</tr>
+<tr>
+<td>9/4</td>
+<td>Same-head / aligned</td>
+<td>0.409405</td>
+<td>0.493832</td>
+<td>0.408884</td>
+<td>0.345271</td>
+<td>0.620018</td>
+<td>0.618697</td>
+<td>0.631301</td>
+</tr>
+</tbody>
+</table>
+<p>Donor 1 illustrates why one successful macro result must not be described as uniform improvement. Alignment raises its task FVE, but its round-trip measured BA falls from 0.564823183 to 0.540925352. The same text can therefore produce a better activation reconstruction yet worse state recovery after H. Some other fold metrics also worsen. These trade-offs remain visible; no panel, threshold or missing-class rule was adjusted to hide them.</p>
+<p><a id="sec19"></a></p>
+<h2>19. Activation-dependence controls</h2>
+<table>
+<thead>
+<tr>
+<th>Margin</th>
+<th>Historical decoder</th>
+<th>Aligned decoder</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>wrong_paired_same_H_panel_MAE_margin</td>
+<td>0.256449219</td>
+<td>0.268245382</td>
+</tr>
+<tr>
+<td>prototype_paired_same_H_panel_MAE_margin</td>
+<td>0.172849293</td>
+<td>0.198258689</td>
+</tr>
+<tr>
+<td>majority_same_H_panel_MAE_margin</td>
+<td>0.438991647</td>
+<td>0.467554582</td>
+</tr>
+<tr>
+<td>wrong_paired_task_FVE_margin</td>
+<td>0.271895350</td>
+<td>0.263161411</td>
+</tr>
+<tr>
+<td>prototype_paired_task_FVE_margin</td>
+<td>0.065915166</td>
+<td>0.101207772</td>
+</tr>
+<tr>
+<td>majority_task_FVE_margin</td>
+<td>0.539129849</td>
+<td>0.558562592</td>
+</tr>
+</tbody>
+</table>
+<p>Matched-wrong controls reuse the actual saved Actor output of the exact mapped wrong-cell input. Prototype controls likewise use Actor-generated prototype messages. They are not replaced by deterministic teacher text. Wrong/prototype margins compare the same 62,569 paired recipients, whereas majority uses all 62,574 held recipients. The five unmatched correct cells remain in primary analysis. Matching uses the frozen site, broad-label and depth-bin strata; a stratum without a distinct eligible partner produces an unmatched reason, not an invented wrong example. [3,6,8,9]</p>
+<p>Positive margins show that the recorded message carries information specific to the correct input under these controls. They do not prove that every sentence is correct, that the ten-state bottleneck preserves all biology, or that reconstruction has a unique causal interpretation. Supported reorderings and rewordings preserve the semantic object and therefore the reconstruction. Explicitly changing a protein-state binding changes the object and its affine output. Both properties are interface-specific, bounded claims.</p>
+<p><a id="sec20"></a></p>
+<h2>20. Worked real-cell examples</h2>
+<p>Before calculating current-case ranks, the package froze a deterministic selection rule. Within each donor, strong cases minimize measured assertion errors then aligned task SSE; weak cases maximize both. Typical cases minimize distance from the fold’s median error count and middle task-SSE rank. Trade-off cases prioritize disagreement between the direction of measured-correctness change and task-SSE change relative to original V1. Every tie uses ascending source row, and selected identities cannot repeat. Two additional typical-ranked donor-1 cases cover sites absent from the primary choices. [10]</p>
+<p>The resulting 22 cases include 20 primary examples and two site-coverage examples. All four donor-1 sites and both directions of the correctness/reconstruction trade-off are covered. The initial walkthrough is the donor-1 typical example. Selection is explicitly based on outcomes and is nonrepresentative. Neither error prevalence nor population FVE is estimated from these examples. The old V1 dossier informed formatting and identity conventions, not current labels or values.</p>
+<h3>C2S-f1-s2-row17904 — typical</h3>
+<p>Donor/site/fold: 1/2/1; snapshot row 17904; key <code>gse194122-45f7e6b515abb3e4</code>. RNA-positive features: 540; RNA counts: 4081.0; prompt tokens: 724; ||h||₂ = 91.286799319.</p>
+<p>Actual recorded English text:</p>
+<pre><code class="language-text">Within the assay-relative protein profile, CD38 is typical relative to the training reference.
+Within the assay-relative protein profile, CD162 is low relative to the training reference.
+Within the assay-relative protein profile, CD54 is low relative to the training reference.
+Within the assay-relative protein profile, CD95 is typical relative to the training reference.
+Within the assay-relative protein profile, CD9 is typical relative to the training reference.
+Within the assay-relative protein profile, CD49b is typical relative to the training reference.
+Within the assay-relative protein profile, CD36 is high relative to the training reference.
+Within the assay-relative protein profile, CD82 is typical relative to the training reference.
+Within the assay-relative protein profile, CD49d is high relative to the training reference.
+Within the assay-relative protein profile, CD32 is typical relative to the training reference.
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Protein</th>
+<th>Actor</th>
+<th>Teacher</th>
+<th>ADT</th>
+<th>H(ĥ)</th>
+<th>q25</th>
+<th>q75</th>
+<th>Centered H / ADT / H(ĥ)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CD38</td>
+<td>typical</td>
+<td>typical</td>
+<td>low</td>
+<td>typical</td>
+<td>0.031739</td>
+<td>1.530069</td>
+<td>0.179249 / -0.862993 / 0.931008</td>
+</tr>
+<tr>
+<td>CD162</td>
+<td>low</td>
+<td>low</td>
+<td>low</td>
+<td>low</td>
+<td>0.810208</td>
+<td>2.255556</td>
+<td>0.354540 / 0.523301 / 0.404088</td>
+</tr>
+<tr>
+<td>CD54</td>
+<td>low</td>
+<td>low</td>
+<td>low</td>
+<td>typical</td>
+<td>-0.473328</td>
+<td>0.805467</td>
+<td>-0.716395 / -0.862993 / -0.393895</td>
+</tr>
+<tr>
+<td>CD95</td>
+<td>typical</td>
+<td>typical</td>
+<td>typical</td>
+<td>typical</td>
+<td>0.938147</td>
+<td>1.745840</td>
+<td>1.462350 / 1.439592 / 1.331420</td>
+</tr>
+<tr>
+<td>CD9</td>
+<td>typical</td>
+<td>typical</td>
+<td>typical</td>
+<td>typical</td>
+<td>-0.529105</td>
+<td>1.822440</td>
+<td>-0.321893 / 0.235619 / 0.729148</td>
+</tr>
+<tr>
+<td>CD49b</td>
+<td>typical</td>
+<td>typical</td>
+<td>typical</td>
+<td>typical</td>
+<td>-1.121073</td>
+<td>0.113083</td>
+<td>-0.652763 / -0.862993 / -0.622590</td>
+</tr>
+<tr>
+<td>CD36</td>
+<td>high</td>
+<td>high</td>
+<td>high</td>
+<td>high</td>
+<td>-1.118667</td>
+<td>1.497714</td>
+<td>2.422200 / 2.081446 / 1.837769</td>
+</tr>
+<tr>
+<td>CD82</td>
+<td>typical</td>
+<td>typical</td>
+<td>high</td>
+<td>typical</td>
+<td>-0.248176</td>
+<td>0.965562</td>
+<td>0.644005 / 1.216448 / 0.685135</td>
+</tr>
+<tr>
+<td>CD49d</td>
+<td>high</td>
+<td>typical</td>
+<td>typical</td>
+<td>high</td>
+<td>0.056659</td>
+<td>1.351225</td>
+<td>1.117281 / 0.928766 / 1.468401</td>
+</tr>
+<tr>
+<td>CD32</td>
+<td>typical</td>
+<td>typical</td>
+<td>typical</td>
+<td>typical</td>
+<td>-1.031643</td>
+<td>1.165172</td>
+<td>-0.624817 / -0.862993 / -0.288973</td>
+</tr>
+</tbody>
+</table>
+<p>Exact one-hot in panel × (low, typical, high) order:</p>
+<p><code>[0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0]</code></p>
+<p>Coordinate 0, intercept and ten algebraic contributions:</p>
+<p><code>ĥ[0] = 0.196977152 + (-0.019382886 + 0.058519874 + 0.014794238 + 0.048027265 + 0.001903945 + -0.048897064 + 0.116701575 + -0.061823483 + 0.184700179 + -0.027475466) = 0.464045330</code>.</p>
+<p><code>r[0] = 0.464045330 − (0.172124118) = 0.291921212; r[0]² = 0.085217994</code>.</p>
+<p><code>SSE = Σ₂₃₀₄ r[k]² = 1668.142480670; MSE = 1668.142480670 / 2304 = 0.724020174; RMSE = √0.724020174 = 0.850893750</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>task_SSE</td>
+<td>9.017075204</td>
+</tr>
+<tr>
+<td>orthogonal_SSE</td>
+<td>1659.125405465</td>
+</tr>
+<tr>
+<td>same_H_panel_MAE</td>
+<td>0.364847611</td>
+</tr>
+<tr>
+<td>same_H_all134_MAE</td>
+<td>0.281833179</td>
+</tr>
+<tr>
+<td>fitting_reference_full_SSE</td>
+<td>3335.545294304</td>
+</tr>
+<tr>
+<td>fitting_reference_task_SSE</td>
+<td>23.985243260</td>
+</tr>
+<tr>
+<td>fitting_reference_orthogonal_SSE</td>
+<td>3311.560051044</td>
+</tr>
+</tbody>
+</table>
+<p>The aligned case has 3/10 measured-reference errors and 1/10 teacher disagreements. V1 on this same cell had 2/10 errors and task SSE 7.575130232; the current task SSE is 9.017075204. This is a cell comparison, not population FVE.</p>
+<h3>C2S-f1-s2-row16233 — tradeoff</h3>
+<p>Donor/site/fold: 1/2/1; snapshot row 16233; key <code>gse194122-d0bf2d1fca2384a2</code>. RNA-positive features: 1079; RNA counts: 2263.0; prompt tokens: 751; ||h||₂ = 91.614616204.</p>
+<p>Actual recorded English text:</p>
+<pre><code class="language-text">Within the assay-relative protein profile, CD38 is typical relative to the training reference.
+Within the assay-relative protein profile, CD162 is high relative to the training reference.
+Within the assay-relative protein profile, CD54 is high relative to the training reference.
+Within the assay-relative protein profile, CD95 is high relative to the training reference.
+Within the assay-relative protein profile, CD9 is typical relative to the training reference.
+Within the assay-relative protein profile, CD49b is high relative to the training reference.
+Within the assay-relative protein profile, CD36 is high relative to the training reference.
+Within the assay-relative protein profile, CD82 is typical relative to the training reference.
+Within the assay-relative protein profile, CD49d is high relative to the training reference.
+Within the assay-relative protein profile, CD32 is high relative to the training reference.
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Protein</th>
+<th>Actor</th>
+<th>Teacher</th>
+<th>ADT</th>
+<th>H(ĥ)</th>
+<th>q25</th>
+<th>q75</th>
+<th>Centered H / ADT / H(ĥ)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CD38</td>
+<td>typical</td>
+<td>typical</td>
+<td>typical</td>
+<td>typical</td>
+<td>0.031739</td>
+<td>1.530069</td>
+<td>0.814579 / 0.758777 / 0.540823</td>
+</tr>
+<tr>
+<td>CD162</td>
+<td>high</td>
+<td>typical</td>
+<td>typical</td>
+<td>high</td>
+<td>0.810208</td>
+<td>2.255556</td>
+<td>2.069663 / 1.646080 / 2.371186</td>
+</tr>
+<tr>
+<td>CD54</td>
+<td>high</td>
+<td>high</td>
+<td>typical</td>
+<td>high</td>
+<td>-0.473328</td>
+<td>0.805467</td>
+<td>0.884722 / 0.758777 / 1.295406</td>
+</tr>
+<tr>
+<td>CD95</td>
+<td>high</td>
+<td>typical</td>
+<td>typical</td>
+<td>high</td>
+<td>0.938147</td>
+<td>1.745840</td>
+<td>1.536162 / 1.115452 / 1.903290</td>
+</tr>
+<tr>
+<td>CD9</td>
+<td>typical</td>
+<td>typical</td>
+<td>typical</td>
+<td>typical</td>
+<td>-0.529105</td>
+<td>1.822440</td>
+<td>-0.145471 / -0.088521 / 1.115799</td>
+</tr>
+<tr>
+<td>CD49b</td>
+<td>high</td>
+<td>typical</td>
+<td>typical</td>
+<td>high</td>
+<td>-1.121073</td>
+<td>0.113083</td>
+<td>-0.148971 / -0.493986 / 0.217723</td>
+</tr>
+<tr>
+<td>CD36</td>
+<td>high</td>
+<td>high</td>
+<td>typical</td>
+<td>high</td>
+<td>-1.118667</td>
+<td>1.497714</td>
+<td>2.187321 / 0.199161 / 2.280200</td>
+</tr>
+<tr>
+<td>CD82</td>
+<td>typical</td>
+<td>low</td>
+<td>low</td>
+<td>typical</td>
+<td>-0.248176</td>
+<td>0.965562</td>
+<td>-0.454740 / -0.493986 / 0.712403</td>
+</tr>
+<tr>
+<td>CD49d</td>
+<td>high</td>
+<td>typical</td>
+<td>low</td>
+<td>high</td>
+<td>0.056659</td>
+<td>1.351225</td>
+<td>0.841707 / -0.088521 / 1.425523</td>
+</tr>
+<tr>
+<td>CD32</td>
+<td>high</td>
+<td>high</td>
+<td>typical</td>
+<td>high</td>
+<td>-1.031643</td>
+<td>1.165172</td>
+<td>1.570982 / 1.010091 / 1.395163</td>
+</tr>
+</tbody>
+</table>
+<p>Exact one-hot in panel × (low, typical, high) order:</p>
+<p><code>[0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1]</code></p>
+<p>Coordinate 0, intercept and ten algebraic contributions:</p>
+<p><code>ĥ[0] = 0.196977152 + (-0.019382886 + 0.037890525 + 0.116145466 + -0.099477220 + 0.001903945 + 0.058881191 + 0.116701575 + -0.061823483 + 0.184700179 + 0.088590992) = 0.621107437</code>.</p>
+<p><code>r[0] = 0.621107437 − (-0.536855996) = 1.157963432; r[0]² = 1.340879310</code>.</p>
+<p><code>SSE = Σ₂₃₀₄ r[k]² = 1888.506572329; MSE = 1888.506572329 / 2304 = 0.819664311; RMSE = √0.819664311 = 0.905353142</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>task_SSE</td>
+<td>16.773455530</td>
+</tr>
+<tr>
+<td>orthogonal_SSE</td>
+<td>1871.733116799</td>
+</tr>
+<tr>
+<td>same_H_panel_MAE</td>
+<td>0.500071189</td>
+</tr>
+<tr>
+<td>same_H_all134_MAE</td>
+<td>0.416284237</td>
+</tr>
+<tr>
+<td>fitting_reference_full_SSE</td>
+<td>1582.224137615</td>
+</tr>
+<tr>
+<td>fitting_reference_task_SSE</td>
+<td>22.532384815</td>
+</tr>
+<tr>
+<td>fitting_reference_orthogonal_SSE</td>
+<td>1559.691752800</td>
+</tr>
+</tbody>
+</table>
+<p>The aligned case has 8/10 measured-reference errors and 5/10 teacher disagreements. V1 on this same cell had 2/10 errors and task SSE 25.211718514; the current task SSE is 16.773455530. This is a cell comparison, not population FVE.</p>
+<p>For each case, the downloadable record contains full RNA nonzero counts and feature indices, exact top-200 sentence, prompt token IDs, h, normalized Actor input, six prefix vectors, saved text/tokens/state logits, parser object, full h_hat, residual and squared error, H/ADT vectors and all controls. The coordinate calculation shows the actual intercept and selected categorical contributions. The scalar formulas are computed from those same arrays, not independently copied narrative numbers.</p>
+<p>The imperfect examples are deliberate evidence about interpretation. An assertion can move toward the measured reference while reconstruction worsens, or reconstruction can improve while more assertions become incorrect. Different functions of a discrete semantic object optimize different geometries. The package demonstrates the observed trade-off and its arithmetic; it does not infer an unobserved training mechanism, latent “biological information fraction,” or causal effect of editing a sentence.</p>
+<h3>Exploring recorded outputs</h3>
+<p>The walkthrough separates RNA input, native vector, Actor output, strict Reader, reconstruction losses and protein comparisons. All 2,304 vector coordinates are available, with synchronized h/h_hat/residual inspection and a scatter plot. Top-gene plots show real RNA counts; protein tables separate assertion, teacher, measured reference and reconstructed-H states, with exact cutpoints and centered values. Prefix heatmaps visualize CPU-derived embeddings and provide direct token/coordinate inspection. Plot axes describe coordinates or counts rather than implying cell images or gene-specific activation attribution.</p>
+<p>A separate sandbox applies an explicit low/typical/high edit or parses typed controlled-language text. It recomputes only the parser, decoder, static H and evaluation arithmetic. Every accepted edit is labeled a hypothetical user-edited message, not Actor generation or a biological intervention. Reset restores immutable recorded text. Supported rewording and clause reversal preserve the object; unsupported text returns its typed rejection. The interface never suggests arbitrary natural-language understanding.</p>
+<p>Static affine maps for H and task projection are precomposed for browser efficiency. Their results are checked against the canonical Python path before use; full original H and U remain in the model package. Browser Float64 arithmetic and NumPy arithmetic may differ in summation order, so equivalence is assessed at recorded tolerances rather than claiming bit identity everywhere. JSON export preserves the case and hypothetical display state; CSV exports all vector coordinates; formulas and registry fields are separately downloadable. Native token activations and unretained logits remain unavailable instead of being synthesized.</p>
+<p><a id="sec21"></a></p>
+<h2>21. Code, models and reproducibility</h2>
+<p>The code and model assets are available in the private <a href="https://github.com/AndriiSameliuk/biological-nla-c2s">GitHub repository</a> and <a href="https://huggingface.co/biolatent/biological-nla-c2s">organization model repository</a>, the primary collaboration location. The private <a href="https://huggingface.co/Sofetory/biological-nla-c2s">owner mirror</a> remains under <code>Sofetory</code>; this one-time mirror is not automatically synchronized. Access requires independently authorized membership; a link alone does not grant access. The current release exposes 15 final Actors and their 15 full-final training checkpoints. Logical manifests distinguish inference from training continuation without duplicating the shared pristine base. The 46 intermediate/recovery checkpoints and one restart-control checkpoint remain in immutable history and the local historical archive.</p>
+<p>Start with <code>same_head_aligned</code> to inspect the latest aligned system; it is not universally best. The four configurations are <code>v1</code>, <code>v2</code>, <code>same_head_historical</code> and <code>same_head_aligned</code>, each requiring an explicit fold in 1/2/5/7/9. The two same-head configurations share Actor weights. Folds are separate cross-validation pipelines, not an ensemble or candidates for selection by held performance. <a href="https://github.com/AndriiSameliuk/biological-nla-c2s/blob/main/docs/USAGE.md">Models and usage</a> document selective downloads and execution.</p>
+<p>A completed bounded fresh RunPod reproduction tested the historical code/assets pair recorded in the reproduction evidence. All 77 original checkpoint archives and 62 distinct model states passed archive or launch checks. On the tested RTX 4090 environment, all 22 RNA-to-sentence replays and native vectors matched the saved contract exactly; all 110 historical Actor/Reader comparisons and 75 final training-fixture comparisons passed. Saved-output CPU replay is a separate check from this live neural evidence. [12]</p>
+<p>RTX 3090 also launched all model states and passed downstream Actor/Reader comparisons. Four native vectors exceeded the unchanged maximum-absolute tolerance of 1e-5, while global RMSE remained within 1e-6. Exact historical reproduction on other hardware is uncharacterized; this does not make RTX 3090 unusable for ordinary inference. Ordinary execution uses Linux/NVIDIA CUDA, FP32 eager attention, disabled autocast/TF32 and separate pristine native/Actor processes. A 24-GiB GPU is a reference capacity; the observed peak of 19,232 MiB is workload-specific.</p>
+<p>The English <a href="index.html">real-cell explorer</a> replays recorded Actor output and browser parser/decoder/H arithmetic. It does not run the transformer. Hypothetical edits are neither Actor generations nor biological interventions. The numerical examples and all scientific result values are unchanged in this final documentation release.</p>
+<p>V2’s historical continuation validates the earlier resume path, but the published release has not undergone a fresh four-rank restart and release verification performed zero optimizer updates. Complete training cohorts remain separate dependencies. <a href="https://github.com/AndriiSameliuk/biological-nla-c2s/blob/main/docs/TRAINING_CONTINUATION.md">Training continuation</a> describes state availability and lineage; <a href="https://github.com/AndriiSameliuk/biological-nla-c2s/blob/main/docs/REPRODUCIBILITY.md">reproducibility</a> records exact environment and tolerance evidence.</p>
+<p><a id="sec22"></a></p>
+<h2>22. Limitations and supported conclusions</h2>
+<p>The evidence supports a constrained biological NLA channel: actual Actor-chosen protein-state text can be parsed independently, decoded into native C2S coordinates and evaluated through the original frozen H. Same-head target alignment improved teacher fidelity and several measured-assertion quantities. Aligned decoding recovered part of the accompanying reconstruction loss without changing the text. The final task/full/orthogonal FVE values are 0.481887268 / 0.392100408 / 0.391289570; same-H selected-panel/all134 MAE is 0.353491737 / 0.346794496, with round-trip measured balanced accuracy 0.603089169. [9]</p>
+<p>These quantities answer different questions. V1 retains higher activation FVE, measured complete-description correctness remains low, donor-specific trade-offs persist, and one protein/site class lacks support. Orthogonal reconstruction does not establish biological information beyond the ten-state semantic source. H is learned and imperfect; assay-relative categories are not clinical reference intervals.</p>
+<p>This is development evidence on an exposed study population, not independent external biological validation. It does not establish causal mechanisms, diagnosis, arbitrary-language understanding, or superiority to a direct state classifier. Native token hidden-state matrices and literal-token/full-vocabulary logits were not retained. The browser’s algebraic coefficient contributions are not causal attributions. The engineering reproduction demonstrates a bounded implementation match, not a new biological result.</p>
+<h2>Evidence references</h2>
+<p>[1] <a href="https://github.com/AndriiSameliuk/biological-nla-c2s/blob/2fe525c07214cd4c4e1ed9ee79767afcbd926db2/docs/evidence/scgpt-transition.md">Transition from the earlier scGPT formulation</a></p>
+<p>[2] <a href="https://github.com/AndriiSameliuk/biological-nla-c2s/blob/2fe525c07214cd4c4e1ed9ee79767afcbd926db2/docs/evidence/controlled-language-actor-protocol.md">Controlled-language Actor protocol</a></p>
+<p>[3] <a href="https://github.com/AndriiSameliuk/biological-nla-c2s/blob/2fe525c07214cd4c4e1ed9ee79767afcbd926db2/docs/evidence/v1-execution.json">V1 execution</a></p>
+<p>[4] <a href="https://github.com/AndriiSameliuk/biological-nla-c2s/blob/2fe525c07214cd4c4e1ed9ee79767afcbd926db2/docs/evidence/reader-qualification.json">Text-only Reader qualification</a></p>
+<p>[5] <a href="https://github.com/AndriiSameliuk/biological-nla-c2s/blob/2fe525c07214cd4c4e1ed9ee79767afcbd926db2/docs/evidence/native-extraction.json">Native C2S extraction contract</a></p>
+<p>[6] <a href="https://github.com/AndriiSameliuk/biological-nla-c2s/blob/2fe525c07214cd4c4e1ed9ee79767afcbd926db2/docs/evidence/v1-characterization.json">V1 characterization</a></p>
+<p>[7] <a href="https://github.com/AndriiSameliuk/biological-nla-c2s/blob/2fe525c07214cd4c4e1ed9ee79767afcbd926db2/docs/evidence/v2-continuation.json">V2 continuation and diagnostic</a></p>
+<p>[8] <a href="https://github.com/AndriiSameliuk/biological-nla-c2s/blob/2fe525c07214cd4c4e1ed9ee79767afcbd926db2/docs/evidence/same-head-alignment.json">Same-head target alignment</a></p>
+<p>[9] <a href="https://github.com/AndriiSameliuk/biological-nla-c2s/blob/2fe525c07214cd4c4e1ed9ee79767afcbd926db2/docs/evidence/semantic-decoder-alignment.json">Semantic-decoder alignment</a></p>
+<p>[10] <a href="https://github.com/AndriiSameliuk/biological-nla-c2s/blob/2fe525c07214cd4c4e1ed9ee79767afcbd926db2/docs/evidence/selection.json">Real-cell selection</a></p>
+<p>[11] <a href="https://github.com/AndriiSameliuk/biological-nla-c2s/blob/2fe525c07214cd4c4e1ed9ee79767afcbd926db2/docs/evidence/native-extraction.json">Pinned Gemma2 final-normalization boundary</a></p>
+<p>[12] <a href="https://github.com/AndriiSameliuk/biological-nla-c2s/blob/2fe525c07214cd4c4e1ed9ee79767afcbd926db2/docs/evidence/private-release-reproduction.json">Private release reproduction</a></p>
+<p><a href="https://github.com/AndriiSameliuk/biological-nla-c2s/blob/2fe525c07214cd4c4e1ed9ee79767afcbd926db2/docs/evidence/scientific-metrics.json">Scientific metric tables</a> · <a href="https://github.com/AndriiSameliuk/biological-nla-c2s/blob/2fe525c07214cd4c4e1ed9ee79767afcbd926db2/docs/evidence/v2-diagnostic.json">V2 diagnostic</a> · <a href="https://github.com/AndriiSameliuk/biological-nla-c2s/blob/2fe525c07214cd4c4e1ed9ee79767afcbd926db2/docs/evidence/activation-controls.json">Activation-dependence controls</a> · <a href="https://github.com/AndriiSameliuk/biological-nla-c2s/blob/2fe525c07214cd4c4e1ed9ee79767afcbd926db2/docs/evidence/worked-cases.json">Worked coordinate calculations</a></p></main></body></html>
